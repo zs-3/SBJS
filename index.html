@@ -5,109 +5,67 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SB.js Transpiler</title>
     <style>
-        /* General reset and styling */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
         body {
             font-family: Arial, sans-serif;
-            background-color: #f4f7fc;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        .container {
-            width: 100%;
-            max-width: 900px;
-            background: #fff;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            border-radius: 10px;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-        }
-
-        h1 {
-            text-align: center;
-            font-size: 2rem;
-            margin-bottom: 20px;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f9;
             color: #333;
         }
-
+        .container {
+            padding: 20px;
+            max-width: 800px;
+            margin: auto;
+        }
         textarea {
             width: 100%;
-            height: 250px;
-            border: 1px solid #ccc;
+            height: 300px;
+            font-family: monospace;
+            font-size: 14px;
+            padding: 10px;
+            border: 1px solid #ddd;
             border-radius: 5px;
-            padding: 15px;
-            font-size: 16px;
-            line-height: 1.5;
-            resize: none;
-            font-family: 'Courier New', Courier, monospace;
-            background-color: #f8f8f8;
+            margin-bottom: 10px;
         }
-
+        .controls {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
         button {
-            width: 100%;
-            padding: 15px;
-            background-color: #5c6bc0;
-            color: #fff;
-            border: none;
+            padding: 10px;
+            font-size: 14px;
+            border: 1px solid #ddd;
             border-radius: 5px;
-            font-size: 18px;
+            background-color: #007bff;
+            color: white;
             cursor: pointer;
-            margin-top: 15px;
-            transition: background-color 0.3s;
         }
-
         button:hover {
-            background-color: #3f51b5;
+            background-color: #0056b3;
         }
-
         .output {
-            margin-top: 20px;
-            padding: 15px;
-            background-color: #e8f0fe;
-            border-radius: 5px;
-            color: #333;
-            border: 1px solid #b3c5d9;
-            font-family: 'Courier New', Courier, monospace;
             white-space: pre-wrap;
-            word-wrap: break-word;
-            font-size: 14px;
-            height: 150px;
+            background-color: #222;
+            color: #0f0;
+            padding: 10px;
+            border-radius: 5px;
+            height: 200px;
             overflow-y: auto;
-        }
-
-        .footer {
-            margin-top: 20px;
-            text-align: center;
+            font-family: monospace;
             font-size: 14px;
-            color: #777;
         }
-
     </style>
 </head>
 <body>
-
     <div class="container">
         <h1>SB.js Transpiler</h1>
-
         <textarea id="sbCode" placeholder="Write or paste your Small Basic code here..."></textarea>
-
-        <button onclick="runSBCode()">Execute SB Code</button>
-
-        <div class="output" id="output"></div>
-
-        <div class="footer">
-            <p>&copy; 2024 SB.js Transpiler | Powered by JavaScript</p>
+        <div class="controls">
+            <button onclick="runSBCode()">Execute SB Code</button>
         </div>
+        <div class="output" id="output"></div>
     </div>
 
     <script>
@@ -115,63 +73,97 @@
             WriteLine: (content) => {
                 const output = document.getElementById("output");
                 output.innerText += content + '\n';
-                output.scrollTop = output.scrollHeight;  // Scroll to bottom
+                output.scrollTop = output.scrollHeight;
             },
+            Write: (content) => {
+                const output = document.getElementById("output");
+                output.innerText += content;
+                output.scrollTop = output.scrollHeight;
+            },
+            Read: () => prompt("Enter input: "),
         };
 
-        // Main transpiler function that returns JS code
+        const declaredVars = new Set(); // Tracks declared variables
+        const declaredArrays = new Set(); // Tracks declared arrays
+
+        function initializeVariablesAndArrays(sbCode) {
+            const varRegex = /([a-zA-Z_][a-zA-Z0-9_]*)\s*=/g; // Detect variable assignment
+            const arrayRegex = /([a-zA-Z_][a-zA-Z0-9_]*)\[/g; // Detect array usage
+
+            let initializationCode = '';
+
+            // Detect and initialize variables
+            let match;
+            while ((match = varRegex.exec(sbCode)) !== null) {
+                const varName = match[1];
+                if (!declaredVars.has(varName)) {
+                    declaredVars.add(varName);
+                    initializationCode += `let ${varName} = null;\n`;
+                }
+            }
+
+            // Detect and initialize arrays
+            while ((match = arrayRegex.exec(sbCode)) !== null) {
+                const arrayName = match[1];
+                if (!declaredArrays.has(arrayName)) {
+                    declaredArrays.add(arrayName);
+                    initializationCode += `let ${arrayName} = [];\n`; // Dynamically initialize arrays as empty
+                }
+            }
+
+            return initializationCode;
+        }
+
         function transpileSBToJS(sbCode) {
+            // Add global initialization code for variables and arrays
+            const initializationCode = initializeVariablesAndArrays(sbCode);
+
             let jsCode = sbCode;
 
-            // Handle `Sub ... EndSub`
-            jsCode = jsCode.replace(/EndSub/gi, '}');
-            jsCode = jsCode.replace(/Sub\s+([a-zA-Z_][a-zA-Z0-9_]*)/gi, 'function $1() {');
-            
-            // Handle `For ... EndFor`
-            jsCode = jsCode.replace(/For\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*([^\s]+)\s+To\s+([^\s]+)(?:\s+Step\s+([^\s]+))?/gi, 
+            // Transpiler logic (same as before with no changes)
+            jsCode = jsCode.replace(/For\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*([^\s]+)\s+To\s+([^\s]+)(?:\s+Step\s+([^\s]+))?/gi,
                 (match, varName, start, end, step) => {
                     step = step || '1';
                     const condition = step.startsWith('-') ? `${varName} >= ${end}` : `${varName} <= ${end}`;
                     return `for (let ${varName} = ${start}; ${condition}; ${varName} += ${step}) {`;
                 });
             jsCode = jsCode.replace(/EndFor/gi, '}');
-
-            // Handle `While ... EndWhile`
-            jsCode = jsCode.replace(/EndWhile/gi, '}');
-            jsCode = jsCode.replace(/While\s+(.*)/gi, 'while ($1) {');
-            
-            // Handle `If ... Then`, `ElseIf`, `Else`, and `EndIf`
-            jsCode = jsCode.replace(/If\s+(.*)\s+Then/gi, 'if ($1) {');
-            jsCode = jsCode.replace(/ElseIf\s+(.*)\s+Then/gi, '} else if ($1) {');
-            jsCode = jsCode.replace(/Else\b/gi, '} else {');
-            jsCode = jsCode.replace(/EndIf/gi, '}');
-
-            // Handle `Goto` - Not directly supported in JS
-            jsCode = jsCode.replace(/Goto\s+([a-zA-Z_][a-zA-Z0-9_]*)/gi, (match, label) => {
-                return `// Goto statement: Not supported in JavaScript, simulate with breaks/continues if needed. (Label: ${label})`;
+            jsCode = jsCode.replace(/While\s+(.*)/gi, (match, condition) => {
+                return `while (${condition}) {`;
             });
-
-            // Handle `TextWindow.WriteLine`
+            jsCode = jsCode.replace(/EndWhile/gi, '}');
+            jsCode = jsCode.replace(/If\s+(.*)\s+Then/gi, (match, condition) => {
+                return `if (${condition}) {`;
+            });
+            jsCode = jsCode.replace(/ElseIf\s+(.*)\s+Then/gi, (match, condition) => {
+                return `} else if (${condition}) {`;
+            });
+            jsCode = jsCode.replace(/Else/gi, '} else {');
+            jsCode = jsCode.replace(/EndIf/gi, '}');
+            jsCode = jsCode.replace(/Sub\s+([a-zA-Z_][a-zA-Z0-9_]*)/gi, (match, functionName) => {
+                return `function ${functionName}() {`;
+            });
+            jsCode = jsCode.replace(/EndSub/gi, '}');
+            jsCode = jsCode.replace(/\s+And\s+/gi, ' && ');
+            jsCode = jsCode.replace(/\s+Or\s+/gi, ' || ');
             jsCode = jsCode.replace(/TextWindow\.WriteLine\((.*)\)/gi, 'TextWindow.WriteLine($1);');
+            jsCode = jsCode.replace(/TextWindow\.Write\((.*)\)/gi, 'TextWindow.Write($1);');
+            jsCode = jsCode.replace(/TextWindow\.Read\(\)/gi, 'TextWindow.Read()');
 
-            // Handle `And` - logical 'and' in JavaScript
-            jsCode = jsCode.replace(/\bAnd\b/gi, '&&');
-
-            // Handle `Or` - logical 'or' in JavaScript
-            jsCode = jsCode.replace(/\bOr\b/gi, '||');
-
-            return jsCode;
+            // Combine initialization code with transpiled code
+            return initializationCode + jsCode;
         }
 
-        // Method to transpile and execute Small Basic code
         function executeSBCode(sbCode) {
-            // Transpile SB code to JS code
+            // Reset declared variables and arrays
+            declaredVars.clear();
+            declaredArrays.clear();
+
             const jsCode = transpileSBToJS(sbCode);
 
             console.log("Transpiled JavaScript Code:");
             console.log(jsCode);
 
-            // Execute the transpiled JavaScript code
             try {
                 eval(jsCode);
             } catch (e) {
@@ -180,17 +172,16 @@
             }
         }
 
-        // Function that runs when the "Execute SB Code" button is clicked
         function runSBCode() {
             const sbCode = document.getElementById("sbCode").value.trim();
+
             if (sbCode) {
                 document.getElementById("output").innerText = '';  // Clear previous output
-                executeSBCode(sbCode); // Execute the SB code
+                executeSBCode(sbCode);
             } else {
                 TextWindow.WriteLine("Please enter Small Basic code to execute.");
             }
         }
     </script>
-
 </body>
 </html>
