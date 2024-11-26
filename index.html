@@ -121,29 +121,29 @@
             let jsCode = sbCode;
 
             // Transpiler logic (same as before with no changes)
-            jsCode = jsCode.replace(/For\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*([^\s]+)\s+To\s+([^\s]+)(?:\s+Step\s+([^\s]+))?/gi,
+            jsCode = jsCode.replace(/EndFor/gi, '}');
+			jsCode = jsCode.replace(/For\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*([^\s]+)\s+To\s+([^\s]+)(?:\s+Step\s+([^\s]+))?/gi,
                 (match, varName, start, end, step) => {
                     step = step || '1';
                     const condition = step.startsWith('-') ? `${varName} >= ${end}` : `${varName} <= ${end}`;
                     return `for (let ${varName} = ${start}; ${condition}; ${varName} += ${step}) {`;
                 });
-            jsCode = jsCode.replace(/EndFor/gi, '}');
-            jsCode = jsCode.replace(/While\s+(.*)/gi, (match, condition) => {
+            jsCode = jsCode.replace(/EndWhile/gi, '}');
+			jsCode = jsCode.replace(/While\s+(.*)/gi, (match, condition) => {
                 return `while (${condition}) {`;
             });
-            jsCode = jsCode.replace(/EndWhile/gi, '}');
-            jsCode = jsCode.replace(/If\s+(.*)\s+Then/gi, (match, condition) => {
-                return `if (${condition}) {`;
-            });
-            jsCode = jsCode.replace(/ElseIf\s+(.*)\s+Then/gi, (match, condition) => {
+			jsCode = jsCode.replace(/EndIf/gi, '}');
+                        jsCode = jsCode.replace(/ElseIf\s+(.*)\s+Then/gi, (match, condition) => {
                 return `} else if (${condition}) {`;
             });
+			jsCode = jsCode.replace(/If\s+(.*)\s+Then/gi, (match, condition) => {
+                return `if (${condition}) {`;
+            });
             jsCode = jsCode.replace(/Else/gi, '} else {');
-            jsCode = jsCode.replace(/EndIf/gi, '}');
-            jsCode = jsCode.replace(/Sub\s+([a-zA-Z_][a-zA-Z0-9_]*)/gi, (match, functionName) => {
+            jsCode = jsCode.replace(/EndSub/gi, '}');
+			jsCode = jsCode.replace(/Sub\s+([a-zA-Z_][a-zA-Z0-9_]*)/gi, (match, functionName) => {
                 return `function ${functionName}() {`;
             });
-            jsCode = jsCode.replace(/EndSub/gi, '}');
             jsCode = jsCode.replace(/\s+And\s+/gi, ' && ');
             jsCode = jsCode.replace(/\s+Or\s+/gi, ' || ');
             jsCode = jsCode.replace(/TextWindow\.WriteLine\((.*)\)/gi, 'TextWindow.WriteLine($1);');
