@@ -4,8 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SB.js Transpiler</title>
-    <script src="https://unpkg.com/terminal.js@0.1.2"></script>
-    <link rel="stylesheet" href="https://unpkg.com/terminal.js@0.1.2/dist/terminal.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm/css/xterm.css">
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -66,22 +65,50 @@
         <div id="console-container"></div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/xterm/lib/xterm.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit/lib/xterm-addon-fit.js"></script>
     <script>
         const terminal = new Terminal();
+        const fitAddon = new FitAddon.FitAddon();
+        terminal.loadAddon(fitAddon);
         terminal.open(document.getElementById('console-container'));
+        fitAddon.fit();
+
+        let inputBuffer = ''; // Stores input from the terminal
+        let inputResolve = null; // Used to resolve the user input promise
+
+        terminal.onData((data) => {
+            if (data === '\r') { // Enter key
+                terminal.write('\r\n');
+                if (inputResolve) {
+                    inputResolve(inputBuffer.trim());
+                    inputBuffer = '';
+                }
+            } else if (data === '\x7F') { // Backspace key
+                if (inputBuffer.length > 0) {
+                    inputBuffer = inputBuffer.slice(0, -1);
+                    terminal.write('\b \b');
+                }
+            } else {
+                inputBuffer += data;
+                terminal.write(data); // Echo input to the terminal
+            }
+        });
 
         const TextWindow = {
             WriteLine: (content) => {
-                terminal.write(content + '\n');
+                terminal.write(content + '\r\n');
             },
             Write: (content) => {
                 terminal.write(content);
             },
             Read: async () => {
-                return await terminal.getLine();
+                return new Promise((resolve) => {
+                    inputResolve = resolve;
+                });
             },
             ReadNumber: async () => {
-                const input = await terminal.getLine();
+                const input = await TextWindow.Read();
                 const num = parseFloat(input);
                 if (isNaN(num)) {
                     TextWindow.WriteLine("Invalid number. Please try again.");
