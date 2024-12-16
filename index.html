@@ -194,23 +194,26 @@
             return initializationCode + jsCode;
         }
 
-        function executeSBCode(sbCode) {
-            // Reset declared variables and arrays
-            declaredVars.clear();
-            declaredArrays.clear();
+        async function executeSBCode(sbCode) {
+    // Reset declared variables and arrays
+    declaredVars.clear();
+    declaredArrays.clear();
 
-            const jsCode = transpileSBToJS(sbCode);
+    const jsCode = transpileSBToJS(sbCode);
 
-            console.log("Transpiled JavaScript Code:");
-            console.log(jsCode);
+    console.log("Transpiled JavaScript Code:");
+    console.log(jsCode);
 
-            try {
-                eval(jsCode);
-            } catch (e) {
-                console.error("Error executing transpiled code:", e.message);
-                TextWindow.WriteLine("Error executing code: " + e.message);
-            }
-        }
+    try {
+        // Use an async function to handle asynchronous behavior in the code
+        const asyncEval = async () => eval(jsCode);
+        await asyncEval();
+    } catch (e) {
+        console.error("Error executing transpiled code:", e.message);
+        TextWindow.WriteLine("Error executing code: " + e.message);
+    }
+}
+
 
         function runSBCode() {
             const sbCode = document.getElementById("sbCode").value.trim();
