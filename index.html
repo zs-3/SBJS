@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SB.js Transpiler</title>
+    <script src="https://unpkg.com/terminal.js@0.1.2"></script>
+    <link rel="stylesheet" href="https://unpkg.com/terminal.js@0.1.2/dist/terminal.css">
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -45,16 +47,12 @@
         button:hover {
             background-color: #0056b3;
         }
-        .output {
-            white-space: pre-wrap;
-            background-color: #222;
-            color: #0f0;
-            padding: 10px;
+        #console-container {
+            height: 300px;
+            border: 1px solid #ddd;
             border-radius: 5px;
-            height: 200px;
             overflow-y: auto;
-            font-family: monospace;
-            font-size: 14px;
+            background: black;
         }
     </style>
 </head>
@@ -65,63 +63,33 @@
         <div class="controls">
             <button onclick="runSBCode()">Execute SB Code</button>
         </div>
-        <div class="output" id="output"></div>
+        <div id="console-container"></div>
     </div>
 
     <script>
+        const terminal = new Terminal();
+        terminal.open(document.getElementById('console-container'));
+
         const TextWindow = {
-    outputElement: document.getElementById("output"),
-
-    WriteLine: (content) => {
-        TextWindow.outputElement.innerText += content + '\n';
-        TextWindow.outputElement.scrollTop = TextWindow.outputElement.scrollHeight;
-    },
-
-    Write: (content) => {
-        TextWindow.outputElement.innerText += content;
-        TextWindow.outputElement.scrollTop = TextWindow.outputElement.scrollHeight;
-    },
-
-    Read: async () => {
-        return await TextWindow.getInput();
-    },
-
-    ReadNumber: async () => {
-        const input = await TextWindow.getInput();
-        const number = parseFloat(input);
-        if (isNaN(number)) {
-            TextWindow.WriteLine("Invalid number. Please try again.");
-            return await TextWindow.ReadNumber();
-        }
-        return number;
-    },
-
-    getInput: () => {
-        return new Promise((resolve) => {
-            const inputField = document.createElement("input");
-            inputField.type = "text";
-            inputField.style.width = "100%";
-            inputField.style.backgroundColor = "black";
-            inputField.style.color = "lime";
-            inputField.style.border = "none";
-            inputField.style.fontFamily = "monospace";
-            inputField.style.fontSize = "14px";
-
-            TextWindow.outputElement.appendChild(inputField);
-            inputField.focus();
-
-            inputField.addEventListener("keydown", (event) => {
-                if (event.key === "Enter") {
-                    const inputValue = inputField.value;
-                    TextWindow.outputElement.removeChild(inputField);
-                    TextWindow.WriteLine(inputValue); // Echo the input in the output area
-                    resolve(inputValue);
+            WriteLine: (content) => {
+                terminal.write(content + '\n');
+            },
+            Write: (content) => {
+                terminal.write(content);
+            },
+            Read: async () => {
+                return await terminal.getLine();
+            },
+            ReadNumber: async () => {
+                const input = await terminal.getLine();
+                const num = parseFloat(input);
+                if (isNaN(num)) {
+                    TextWindow.WriteLine("Invalid number. Please try again.");
+                    return await TextWindow.ReadNumber();
                 }
-            });
-        });
-    }
-};
-
+                return num;
+            },
+        };
 
         const declaredVars = new Set(); // Tracks declared variables
         const declaredArrays = new Set(); // Tracks declared arrays
@@ -155,71 +123,66 @@
         }
 
         function transpileSBToJS(sbCode) {
-            // Add global initialization code for variables and arrays
             const initializationCode = initializeVariablesAndArrays(sbCode);
 
             let jsCode = sbCode;
 
-            // Transpiler logic (same as before with no changes)
             jsCode = jsCode.replace(/EndFor/gi, '}');
-			jsCode = jsCode.replace(/For\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*([^\s]+)\s+To\s+([^\s]+)(?:\s+Step\s+([^\s]+))?/gi,
+            jsCode = jsCode.replace(/For\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*([^\s]+)\s+To\s+([^\s]+)(?:\s+Step\s+([^\s]+))?/gi,
                 (match, varName, start, end, step) => {
                     step = step || '1';
                     const condition = step.startsWith('-') ? `${varName} >= ${end}` : `${varName} <= ${end}`;
                     return `for (let ${varName} = ${start}; ${condition}; ${varName} += ${step}) {`;
                 });
             jsCode = jsCode.replace(/EndWhile/gi, '}');
-			jsCode = jsCode.replace(/While\s+(.*)/gi, (match, condition) => {
+            jsCode = jsCode.replace(/While\s+(.*)/gi, (match, condition) => {
                 return `while (${condition}) {`;
             });
-			jsCode = jsCode.replace(/EndIf/gi, '}');
-                        jsCode = jsCode.replace(/ElseIf\s+(.*)\s+Then/gi, (match, condition) => {
+            jsCode = jsCode.replace(/EndIf/gi, '}');
+            jsCode = jsCode.replace(/ElseIf\s+(.*)\s+Then/gi, (match, condition) => {
                 return `} else if (${condition}) {`;
             });
-			jsCode = jsCode.replace(/If\s+(.*)\s+Then/gi, (match, condition) => {
+            jsCode = jsCode.replace(/If\s+(.*)\s+Then/gi, (match, condition) => {
                 return `if (${condition}) {`;
             });
             jsCode = jsCode.replace(/Else/gi, '} else {');
             jsCode = jsCode.replace(/EndSub/gi, '}');
-			jsCode = jsCode.replace(/Sub\s+([a-zA-Z_][a-zA-Z0-9_]*)/gi, (match, functionName) => {
+            jsCode = jsCode.replace(/Sub\s+([a-zA-Z_][a-zA-Z0-9_]*)/gi, (match, functionName) => {
                 return `function ${functionName}() {`;
             });
             jsCode = jsCode.replace(/\s+And\s+/gi, ' && ');
             jsCode = jsCode.replace(/\s+Or\s+/gi, ' || ');
             jsCode = jsCode.replace(/TextWindow\.WriteLine\((.*)\)/gi, 'TextWindow.WriteLine($1);');
             jsCode = jsCode.replace(/TextWindow\.Write\((.*)\)/gi, 'TextWindow.Write($1);');
-            jsCode = jsCode.replace(/TextWindow\.Read\(\)/gi, 'TextWindow.Read()');
+            jsCode = jsCode.replace(/TextWindow\.Read\(\)/gi, 'await TextWindow.Read()');
+            jsCode = jsCode.replace(/TextWindow\.ReadNumber\(\)/gi, 'await TextWindow.ReadNumber()');
 
-            // Combine initialization code with transpiled code
             return initializationCode + jsCode;
         }
 
         async function executeSBCode(sbCode) {
-    // Reset declared variables and arrays
-    declaredVars.clear();
-    declaredArrays.clear();
+            declaredVars.clear();
+            declaredArrays.clear();
 
-    const jsCode = transpileSBToJS(sbCode);
+            const jsCode = transpileSBToJS(sbCode);
 
-    console.log("Transpiled JavaScript Code:");
-    console.log(jsCode);
+            console.log("Transpiled JavaScript Code:");
+            console.log(jsCode);
 
-    try {
-        // Use an async function to handle asynchronous behavior in the code
-        const asyncEval = async () => eval(jsCode);
-        await asyncEval();
-    } catch (e) {
-        console.error("Error executing transpiled code:", e.message);
-        TextWindow.WriteLine("Error executing code: " + e.message);
-    }
-}
-
+            try {
+                const asyncEval = async () => eval(jsCode);
+                await asyncEval();
+            } catch (e) {
+                console.error("Error executing transpiled code:", e.message);
+                TextWindow.WriteLine("Error executing code: " + e.message);
+            }
+        }
 
         function runSBCode() {
             const sbCode = document.getElementById("sbCode").value.trim();
 
             if (sbCode) {
-                document.getElementById("output").innerText = '';  // Clear previous output
+                terminal.clear();
                 executeSBCode(sbCode);
             } else {
                 TextWindow.WriteLine("Please enter Small Basic code to execute.");
