@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SB.js Transpiler</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm/css/xterm.css">
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -52,6 +51,8 @@
             border-radius: 5px;
             overflow-y: auto;
             background: black;
+            color: white;
+            padding: 10px;
         }
     </style>
 </head>
@@ -65,95 +66,40 @@
         <div id="console-container"></div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/xterm/lib/xterm.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit/lib/xterm-addon-fit.js"></script>
     <script>
-        const terminal = new Terminal();
-        const fitAddon = new FitAddon.FitAddon();
-        terminal.loadAddon(fitAddon);
-        terminal.open(document.getElementById('console-container'));
-        fitAddon.fit();
-
-        let inputBuffer = ''; // Stores input from the terminal
-        let inputResolve = null; // Used to resolve the user input promise
-
-        terminal.onData((data) => {
-            if (data === '\r') { // Enter key
-                terminal.write('\r\n');
-                if (inputResolve) {
-                    inputResolve(inputBuffer.trim());
-                    inputBuffer = '';
-                }
-            } else if (data === '\x7F') { // Backspace key
-                if (inputBuffer.length > 0) {
-                    inputBuffer = inputBuffer.slice(0, -1);
-                    terminal.write('\b \b');
-                }
-            } else {
-                inputBuffer += data;
-                terminal.write(data); // Echo input to the terminal
-            }
-        });
-
+        // Function to simulate TextWindow.WriteLine
         const TextWindow = {
             WriteLine: (content) => {
-                terminal.write(content + '\r\n');
+                const consoleContainer = document.getElementById('console-container');
+                const p = document.createElement('p');
+                p.textContent = content;
+                consoleContainer.appendChild(p);
             },
             Write: (content) => {
-                terminal.write(content);
+                const consoleContainer = document.getElementById('console-container');
+                const span = document.createElement('span');
+                span.textContent = content;
+                consoleContainer.appendChild(span);
             },
-            Read: async () => {
+            Read: () => {
                 return new Promise((resolve) => {
-                    inputResolve = resolve;
+                    const input = prompt('Enter your input:');
+                    resolve(input);
                 });
             },
-            ReadNumber: async () => {
-                const input = await TextWindow.Read();
-                const num = parseFloat(input);
-                if (isNaN(num)) {
-                    TextWindow.WriteLine("Invalid number. Please try again.");
-                    return await TextWindow.ReadNumber();
-                }
-                return num;
-            },
+            ReadNumber: () => {
+                return new Promise((resolve) => {
+                    const input = prompt('Enter a number:');
+                    const num = parseFloat(input);
+                    resolve(num);
+                });
+            }
         };
 
-        const declaredVars = new Set(); // Tracks declared variables
-        const declaredArrays = new Set(); // Tracks declared arrays
-
-        function initializeVariablesAndArrays(sbCode) {
-            const varRegex = /([a-zA-Z_][a-zA-Z0-9_]*)\s*=/g; // Detect variable assignment
-            const arrayRegex = /([a-zA-Z_][a-zA-Z0-9_]*)\[/g; // Detect array usage
-
-            let initializationCode = '';
-
-            // Detect and initialize variables
-            let match;
-            while ((match = varRegex.exec(sbCode)) !== null) {
-                const varName = match[1];
-                if (!declaredVars.has(varName)) {
-                    declaredVars.add(varName);
-                    initializationCode += `let ${varName} = null;\n`;
-                }
-            }
-
-            // Detect and initialize arrays
-            while ((match = arrayRegex.exec(sbCode)) !== null) {
-                const arrayName = match[1];
-                if (!declaredArrays.has(arrayName)) {
-                    declaredArrays.add(arrayName);
-                    initializationCode += `let ${arrayName} = [];\n`; // Dynamically initialize arrays as empty
-                }
-            }
-
-            return initializationCode;
-        }
-
+        // Function to transpile Small Basic code to JavaScript
         function transpileSBToJS(sbCode) {
-            const initializationCode = initializeVariablesAndArrays(sbCode);
-
             let jsCode = sbCode;
-
+            
             jsCode = jsCode.replace(/EndFor/gi, '}');
             jsCode = jsCode.replace(/For\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*([^\s]+)\s+To\s+([^\s]+)(?:\s+Step\s+([^\s]+))?/gi,
                 (match, varName, start, end, step) => {
@@ -184,19 +130,17 @@
             jsCode = jsCode.replace(/TextWindow\.Read\(\)/gi, 'await TextWindow.Read()');
             jsCode = jsCode.replace(/TextWindow\.ReadNumber\(\)/gi, 'await TextWindow.ReadNumber()');
 
-            return initializationCode + jsCode;
+            return jsCode;
         }
 
         async function executeSBCode(sbCode) {
-            declaredVars.clear();
-            declaredArrays.clear();
-
             const jsCode = transpileSBToJS(sbCode);
 
             console.log("Transpiled JavaScript Code:");
             console.log(jsCode);
 
             try {
+                // Wrap the code in an async function to handle await
                 const asyncEval = async () => eval(jsCode);
                 await asyncEval();
             } catch (e) {
@@ -209,7 +153,8 @@
             const sbCode = document.getElementById("sbCode").value.trim();
 
             if (sbCode) {
-                terminal.clear();
+                const consoleContainer = document.getElementById('console-container');
+                consoleContainer.innerHTML = ''; // Clear previous output
                 executeSBCode(sbCode);
             } else {
                 TextWindow.WriteLine("Please enter Small Basic code to execute.");
