@@ -70,18 +70,58 @@
 
     <script>
         const TextWindow = {
-            WriteLine: (content) => {
-                const output = document.getElementById("output");
-                output.innerText += content + '\n';
-                output.scrollTop = output.scrollHeight;
-            },
-            Write: (content) => {
-                const output = document.getElementById("output");
-                output.innerText += content;
-                output.scrollTop = output.scrollHeight;
-            },
-            Read: () => prompt("Enter input: "),
-        };
+    outputElement: document.getElementById("output"),
+
+    WriteLine: (content) => {
+        TextWindow.outputElement.innerText += content + '\n';
+        TextWindow.outputElement.scrollTop = TextWindow.outputElement.scrollHeight;
+    },
+
+    Write: (content) => {
+        TextWindow.outputElement.innerText += content;
+        TextWindow.outputElement.scrollTop = TextWindow.outputElement.scrollHeight;
+    },
+
+    Read: async () => {
+        return await TextWindow.getInput();
+    },
+
+    ReadNumber: async () => {
+        const input = await TextWindow.getInput();
+        const number = parseFloat(input);
+        if (isNaN(number)) {
+            TextWindow.WriteLine("Invalid number. Please try again.");
+            return await TextWindow.ReadNumber();
+        }
+        return number;
+    },
+
+    getInput: () => {
+        return new Promise((resolve) => {
+            const inputField = document.createElement("input");
+            inputField.type = "text";
+            inputField.style.width = "100%";
+            inputField.style.backgroundColor = "black";
+            inputField.style.color = "lime";
+            inputField.style.border = "none";
+            inputField.style.fontFamily = "monospace";
+            inputField.style.fontSize = "14px";
+
+            TextWindow.outputElement.appendChild(inputField);
+            inputField.focus();
+
+            inputField.addEventListener("keydown", (event) => {
+                if (event.key === "Enter") {
+                    const inputValue = inputField.value;
+                    TextWindow.outputElement.removeChild(inputField);
+                    TextWindow.WriteLine(inputValue); // Echo the input in the output area
+                    resolve(inputValue);
+                }
+            });
+        });
+    }
+};
+
 
         const declaredVars = new Set(); // Tracks declared variables
         const declaredArrays = new Set(); // Tracks declared arrays
