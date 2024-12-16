@@ -45,14 +45,16 @@
         button:hover {
             background-color: #0056b3;
         }
-        #console-container {
-            height: 300px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            overflow-y: auto;
-            background: black;
-            color: white;
+        .output {
+            white-space: pre-wrap;
+            background-color: #222;
+            color: #0f0;
             padding: 10px;
+            border-radius: 5px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 14px;
         }
     </style>
 </head>
@@ -63,86 +65,107 @@
         <div class="controls">
             <button onclick="runSBCode()">Execute SB Code</button>
         </div>
-        <div id="console-container"></div>
+        <div class="output" id="output"></div>
     </div>
 
     <script>
-        // Function to simulate TextWindow.WriteLine
         const TextWindow = {
             WriteLine: (content) => {
-                const consoleContainer = document.getElementById('console-container');
-                const p = document.createElement('p');
-                p.textContent = content;
-                consoleContainer.appendChild(p);
+                const output = document.getElementById("output");
+                output.innerText += content + '\n';
+                output.scrollTop = output.scrollHeight;
             },
             Write: (content) => {
-                const consoleContainer = document.getElementById('console-container');
-                const span = document.createElement('span');
-                span.textContent = content;
-                consoleContainer.appendChild(span);
+                const output = document.getElementById("output");
+                output.innerText += content;
+                output.scrollTop = output.scrollHeight;
             },
-            Read: () => {
-                return new Promise((resolve) => {
-                    const input = prompt('Enter your input:');
-                    resolve(input);
-                });
-            },
-            ReadNumber: () => {
-                return new Promise((resolve) => {
-                    const input = prompt('Enter a number:');
-                    const num = parseFloat(input);
-                    resolve(num);
-                });
-            }
+            Read: () => prompt("Enter input: "),
         };
 
-        // Function to transpile Small Basic code to JavaScript
+        const declaredVars = new Set(); // Tracks declared variables
+        const declaredArrays = new Set(); // Tracks declared arrays
+
+        function initializeVariablesAndArrays(sbCode) {
+            const varRegex = /([a-zA-Z_][a-zA-Z0-9_]*)\s*=/g; // Detect variable assignment
+            const arrayRegex = /([a-zA-Z_][a-zA-Z0-9_]*)\[/g; // Detect array usage
+
+            let initializationCode = '';
+
+            // Detect and initialize variables
+            let match;
+            while ((match = varRegex.exec(sbCode)) !== null) {
+                const varName = match[1];
+                if (!declaredVars.has(varName)) {
+                    declaredVars.add(varName);
+                    initializationCode += `let ${varName} = null;\n`;
+                }
+            }
+
+            // Detect and initialize arrays
+            while ((match = arrayRegex.exec(sbCode)) !== null) {
+                const arrayName = match[1];
+                if (!declaredArrays.has(arrayName)) {
+                    declaredArrays.add(arrayName);
+                    initializationCode += `let ${arrayName} = [];\n`; // Dynamically initialize arrays as empty
+                }
+            }
+
+            return initializationCode;
+        }
+
         function transpileSBToJS(sbCode) {
+            // Add global initialization code for variables and arrays
+            const initializationCode = initializeVariablesAndArrays(sbCode);
+
             let jsCode = sbCode;
-            
+
+            // Transpiler logic (same as before with no changes)
             jsCode = jsCode.replace(/EndFor/gi, '}');
-            jsCode = jsCode.replace(/For\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*([^\s]+)\s+To\s+([^\s]+)(?:\s+Step\s+([^\s]+))?/gi,
+			jsCode = jsCode.replace(/For\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*=\s*([^\s]+)\s+To\s+([^\s]+)(?:\s+Step\s+([^\s]+))?/gi,
                 (match, varName, start, end, step) => {
                     step = step || '1';
                     const condition = step.startsWith('-') ? `${varName} >= ${end}` : `${varName} <= ${end}`;
                     return `for (let ${varName} = ${start}; ${condition}; ${varName} += ${step}) {`;
                 });
             jsCode = jsCode.replace(/EndWhile/gi, '}');
-            jsCode = jsCode.replace(/While\s+(.*)/gi, (match, condition) => {
+			jsCode = jsCode.replace(/While\s+(.*)/gi, (match, condition) => {
                 return `while (${condition}) {`;
             });
-            jsCode = jsCode.replace(/EndIf/gi, '}');
-            jsCode = jsCode.replace(/ElseIf\s+(.*)\s+Then/gi, (match, condition) => {
+			jsCode = jsCode.replace(/EndIf/gi, '}');
+                        jsCode = jsCode.replace(/ElseIf\s+(.*)\s+Then/gi, (match, condition) => {
                 return `} else if (${condition}) {`;
             });
-            jsCode = jsCode.replace(/If\s+(.*)\s+Then/gi, (match, condition) => {
+			jsCode = jsCode.replace(/If\s+(.*)\s+Then/gi, (match, condition) => {
                 return `if (${condition}) {`;
             });
             jsCode = jsCode.replace(/Else/gi, '} else {');
             jsCode = jsCode.replace(/EndSub/gi, '}');
-            jsCode = jsCode.replace(/Sub\s+([a-zA-Z_][a-zA-Z0-9_]*)/gi, (match, functionName) => {
+			jsCode = jsCode.replace(/Sub\s+([a-zA-Z_][a-zA-Z0-9_]*)/gi, (match, functionName) => {
                 return `function ${functionName}() {`;
             });
             jsCode = jsCode.replace(/\s+And\s+/gi, ' && ');
             jsCode = jsCode.replace(/\s+Or\s+/gi, ' || ');
             jsCode = jsCode.replace(/TextWindow\.WriteLine\((.*)\)/gi, 'TextWindow.WriteLine($1);');
             jsCode = jsCode.replace(/TextWindow\.Write\((.*)\)/gi, 'TextWindow.Write($1);');
-            jsCode = jsCode.replace(/TextWindow\.Read\(\)/gi, 'await TextWindow.Read()');
-            jsCode = jsCode.replace(/TextWindow\.ReadNumber\(\)/gi, 'await TextWindow.ReadNumber()');
+            jsCode = jsCode.replace(/TextWindow\.Read\(\)/gi, 'TextWindow.Read()');
 
-            return jsCode;
+            // Combine initialization code with transpiled code
+            return initializationCode + jsCode;
         }
 
-        async function executeSBCode(sbCode) {
+        function executeSBCode(sbCode) {
+            // Reset declared variables and arrays
+            declaredVars.clear();
+            declaredArrays.clear();
+
             const jsCode = transpileSBToJS(sbCode);
 
             console.log("Transpiled JavaScript Code:");
             console.log(jsCode);
 
             try {
-                // Wrap the code in an async function to handle await
-                const asyncEval = async () => eval(jsCode);
-                await asyncEval();
+                eval(jsCode);
             } catch (e) {
                 console.error("Error executing transpiled code:", e.message);
                 TextWindow.WriteLine("Error executing code: " + e.message);
@@ -153,8 +176,7 @@
             const sbCode = document.getElementById("sbCode").value.trim();
 
             if (sbCode) {
-                const consoleContainer = document.getElementById('console-container');
-                consoleContainer.innerHTML = ''; // Clear previous output
+                document.getElementById("output").innerText = '';  // Clear previous output
                 executeSBCode(sbCode);
             } else {
                 TextWindow.WriteLine("Please enter Small Basic code to execute.");
